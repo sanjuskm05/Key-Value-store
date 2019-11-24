@@ -9,6 +9,8 @@
 #define _MP1NODE_H_
 
 #include "stdincludes.h"
+#include <iostream>
+#include <string>
 #include "Log.h"
 #include "Params.h"
 #include "Member.h"
@@ -18,7 +20,7 @@
 /**
  * Macros
  */
-#define TREMOVE 20
+#define TCLEANUP 20
 #define TFAIL 5
 
 /*
@@ -31,6 +33,8 @@
 enum MsgTypes{
     JOINREQ,
     JOINREP,
+    SENDHEARTBEAT,
+    RECEIVEHEARTBEAT,
     DUMMYLASTMSGTYPE
 };
 
@@ -56,6 +60,17 @@ private:
 	Member *memberNode;
 	char NULLADDR[6];
 
+	long cleanUpMemberList(long totalMembersCount, char* data);
+	bool updateMemberInMemberList(int id, short port, long heartbeat);
+	bool addMemberInMemberList(int id, short port, long heartbeat);
+	bool refreshMemberList(const char * label, void *env, char *data, int size);
+	void disseminateMsg(const char * label, enum MsgTypes msgType, Address *to);
+
+	bool sendJoinReplyMsg(void *env, char *data);
+	bool recvJoinReplyMsg(void *env, char *data, int size);
+	bool sendHeartBeatMsg(void *env, char *data, int size);
+	bool recvHeartbeatMsg(void *env, char *data, int size);
+
 public:
 	MP1Node(Member *, Params *, EmulNet *, Log *, Address *);
 	Member * getMemberNode() {
@@ -76,6 +91,7 @@ public:
 	void initMemberListTable(Member *memberNode);
 	void printAddress(Address *addr);
 	virtual ~MP1Node();
+
 };
 
 #endif /* _MP1NODE_H_ */
