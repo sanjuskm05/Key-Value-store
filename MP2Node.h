@@ -18,7 +18,12 @@
 #include "Params.h"
 #include "Message.h"
 #include "Queue.h"
+#include <list>
 
+#define NUMBER_OF_KEY_REPLICAS 3
+#define QUORUM_COUNT (((NUMBER_OF_KEY_REPLICAS)/2) + 1)
+#define RESPONSE_WAIT_TIME 30
+#define MSG_TAG '#'
 /**
  * CLASS NAME: MP2Node
  *
@@ -29,6 +34,44 @@
  * 				3) Server side CRUD APIs
  * 				4) Client side CRUD APIs
  */
+
+/* Custom message wrapper needed for replicate messages */
+class CustomMessage:public Message {
+    public:
+    enum CustomMessageType{ UPDATE_TYPE, READ_TYPE };
+    CustomMessage(string msg);
+    CustomMessage(CustomMessageType msgType, string normalMsg);
+    CustomMessage(CustomMessageType msgType, Message normalMsg);
+    string toString();
+    static string stripMyHeader(string message); 
+    CustomMessageType msgType;
+};
+
+/*
+ * Custom class implementation for storing transaction
+ *
+ */
+struct transaction {
+    public:
+    int globaltransId;
+    int localTimestamp;
+    int quorumCount;
+    MessageType transactionType;
+    string key;
+    pair<int,string> latestValue;
+    transaction(int transId, int localTs, int qc, MessageType ttype,string k,string value):
+    globaltransId(transId),
+    localTimestamp(localTs),
+    quorumCount(qc),
+    transactionType(ttype),
+    key(k),
+    latestValue(0,value){
+    } 
+};
+/* custom map */
+typedef std::map<string,Entry> KeyMap;
+/* Custom class implementations that will be used in MP2Node*/
+
 class MP2Node {
 private:
 	// Vector holding the next two neighbors in the ring who have my replicas
@@ -47,6 +90,31 @@ private:
 	EmulNet * emulNet;
 	// Object of Log
 	Log * log;
+
+
+    list<transaction> translog;
+    KeyMap keymap;
+
+
+    bool isInitiated;
+    /**Server msg*/
+    void createKey(Message msg);
+    void updateKey(Message msg);
+    void deleteKey(Message msg);
+    void readKey(Message msg);
+    void replicate(Node toNode, ReplicaType rType);
+    void updateReplica(Message msg);
+
+    /* client msg */
+    void readReply(Message msg);
+    void reply(Message msg);
+
+    /* Util functions to propogate messages */
+    void unicastMsg(CustomMessage msg, Address& toaddr);
+    void multicastMsg(CustomMessage msg,vector<Node>& recp);
+    
+    /* transaction timeouts*/
+    void updateTransactionLog();
 
 public:
 	MP2Node(Member *memberNode, Params *par, EmulNet *emulNet, Log *log, Address *addressOfMember);
@@ -74,7 +142,7 @@ public:
 	void checkMessages();
 
 	// coordinator dispatches messages to corresponding nodes
-	void dispatchMessages(Message message);
+	void dispatchMessages(CustomMessage message);
 
 	// find the addresses of nodes that are responsible for a key
 	vector<Node> findNodes(string key);
